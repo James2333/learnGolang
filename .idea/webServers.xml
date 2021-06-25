@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="61ea075f-456e-4513-b193-2160814d7336" name="Rat">
+        <fileTransfer rootFolder="/opt/go_test" accessType="SFTP" host="172.31.230.85" port="22" sshConfigId="7fbac4c5-79c0-4189-882c-975165236858" sshConfig="root@172.31.230.85:22 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+      <webServer id="179ac9af-f046-4806-8112-b15211d33c69" name="gin-blog">
+        <fileTransfer rootFolder="/opt/gin-blog" accessType="SFTP" host="172.31.230.85" port="22" sshConfigId="7fbac4c5-79c0-4189-882c-975165236858" sshConfig="root@172.31.230.85:22 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
