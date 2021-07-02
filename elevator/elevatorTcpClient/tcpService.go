@@ -2,6 +2,7 @@ package elevatorTcpClient
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"learn101/elevator"
 	"log"
@@ -18,15 +19,19 @@ type ReqEl struct {
 }
 
 type ReqEle struct {
-	//传前者是请求电梯，后者是更新电梯
-	TaskIdState string //taskId or state
-	StartFloor  int64  //strat or floor
-	EleId       string //eleId or eleId
+	TaskId    string //taskId
+	Start     int64  //strat
+	End       int64
+	EleId     string //eleId
+	State     string
+	Floor     int64
+	IsInFloor bool //电梯内是否有机器人 true 为在
 }
 
 type Res struct {
 	Result bool
 	EleId  string
+	Error  error
 }
 
 func NewTcpService() {
@@ -69,8 +74,8 @@ func coonSt(c net.Conn) {
 			//更新电梯信息
 			midel := &elevator.Elevator{
 				ElevatorId:   msg.EleId,
-				Floor:        msg.StartFloor,
-				State:        msg.TaskIdState,
+				Floor:        msg.Floor,
+				State:        msg.State,
 				CurrentState: "0",
 			}
 			fmt.Println("-------------------------")
@@ -86,16 +91,18 @@ func coonSt(c net.Conn) {
 			resEl := &Res{
 				Result: true,
 				EleId:  msg.EleId,
+				Error:  nil,
 			}
 			//回传的信息
 			e.Encode(&resEl)
 		case "1":
 			//获取可用电梯
-			el, err := els.RightElevator(msg.StartFloor)
+			el, err := els.RightElevator(msg.Start)
 			if err != nil {
 				resEl := &Res{
 					Result: false,
 					EleId:  "",
+					Error:  errors.New("当前无可用电梯"),
 				}
 				//传回错误信息
 				e.Encode(&resEl)
@@ -107,7 +114,7 @@ func coonSt(c net.Conn) {
 				continue
 			}
 
-			fmt.Printf("本次选用的是电梯%s", el)
+			fmt.Printf("本次选用的是电梯%s,taskID为%s", el, msg.TaskId)
 			for _, v := range els {
 				fmt.Print(v)
 			}
@@ -116,10 +123,132 @@ func coonSt(c net.Conn) {
 			resEl := &Res{
 				Result: true,
 				EleId:  el,
+				Error:  nil,
+			}
+			e.Encode(&resEl)
+		case "2":
+			//电梯更新是否抵达起点|终点楼层
+			midel := &elevator.Elevator{
+				ElevatorId:   msg.EleId,
+				Floor:        msg.Floor,
+				State:        msg.State,
+				CurrentState: "1",
+			}
+			fmt.Println("-------------------------")
+			for _, v := range els {
+				fmt.Print(v)
+			}
+			els.Update(midel)
+			fmt.Printf("电梯%s被状态被更新了\n", midel.ElevatorId)
+			for _, v := range els {
+				fmt.Print(v)
+			}
+			fmt.Println("\n-------------------------")
+			//此时这里检测 机器人是否进|出电梯
+			//检测是否进电梯  start楼层等于电梯现在在的楼层，并且isInFloor为true
+			if msg.Start == els[msg.EleId].Floor && els[msg.EleId].IsInFloor {
+				resEl := &Res{
+					Result: true,
+					EleId:  msg.EleId,
+					Error:  nil,
+				}
+				//回传的信息 告知电梯可以启动了
+				e.Encode(&resEl)
+			} else if msg.End == els[msg.EleId].Floor && !els[msg.EleId].IsInFloor {
+				//检测是否已经出电梯，end==floor 并且isInFloor为false
+				resEl := &Res{
+					Result: true,
+					EleId:  msg.EleId,
+					Error:  nil,
+				}
+				//回传的信息 告知电梯可以变为空闲状态了，变更为发送0操作
+				e.Encode(&resEl)
+			}
+			resEl := &Res{
+				Result: false,
+				EleId:  msg.EleId,
+				Error:  errors.New("再等等吧"),
+			}
+			//回传的信息
+			e.Encode(&resEl)
+		case "3":
+			//调度询问电梯是否抵达起点
+			//传入的start==目前电梯的floor则表示电梯已经抵达起点
+			//接收到返回后 调度把isInfloor的值改为true
+			if msg.EleId == els[msg.EleId].ElevatorId && msg.Start == els[msg.EleId].Floor {
+				resEl := &Res{
+					Result: true,
+					EleId:  msg.EleId,
+					Error:  nil,
+				}
+				e.Encode(&resEl)
+				return
+			}
+			resEl := &Res{
+				Result: false,
+				EleId:  msg.EleId,
+				Error:  errors.New("电梯还未抵达起点！"),
+			}
+			e.Encode(&resEl)
+		case "4":
+			//调度询问电梯是否抵达终点
+			//传入的end==目前电梯的floor则表示电梯已经抵达终点
+			//接到true的回复 调度才能让机器人驶出电梯
+			if msg.EleId == els[msg.EleId].ElevatorId && msg.End == els[msg.EleId].Floor {
+				resEl := &Res{
+					Result: true,
+					EleId:  msg.EleId,
+					Error:  nil,
+				}
+				e.Encode(&resEl)
+				return
+			}
+			resEl := &Res{
+				Result: false,
+				EleId:  msg.EleId,
+				Error:  errors.New("电梯还未抵达终点！"),
+			}
+			e.Encode(&resEl)
+		case "5":
+			//调度发送已经驶入电梯的请求
+			//如果接到机器人已驶入电梯，并且楼层正确的，则把电梯信息更新
+			if msg.IsInFloor &&msg.Start==els[msg.EleId].Floor{
+				els[msg.EleId].IsInFloor=true
+				resEl := &Res{
+					Result: true,
+					EleId:  msg.EleId,
+					Error:  nil,
+				}
+				e.Encode(&resEl)
+				return
+			}
+			resEl := &Res{
+				Result: false,
+				EleId:  msg.EleId,
+				Error:  errors.New("更新机器人驶入状态失败"),
+			}
+			e.Encode(&resEl)
+			case "6":
+			//调度发送已经驶出电梯的请求
+			//如果接到机器人已驶出电梯，并且楼层正确的，则把电梯信息更新
+			if !msg.IsInFloor &&msg.End==els[msg.EleId].Floor{
+				els[msg.EleId].IsInFloor=false
+				resEl := &Res{
+					Result: true,
+					EleId:  msg.EleId,
+					Error:  nil,
+				}
+				e.Encode(&resEl)
+				return
+			}
+			resEl := &Res{
+				Result: false,
+				EleId:  msg.EleId,
+				Error:  errors.New("更新机器人驶出状态失败"),
 			}
 			e.Encode(&resEl)
 		default:
-			c.Write([]byte("请求参数不对！"))
+			c.Write([]byte("请求参数错误！"))
 		}
 
 	}

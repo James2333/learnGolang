@@ -23,32 +23,19 @@ func NewTestReqEle() *ReqEl {
 	return &ReqEl{
 		Operation: "1",
 		ReqEle: ReqEle{
-			TaskIdState: "111",
-			StartFloor:  1,
-			EleId:       "111",
+			TaskId: "111",
+			Start:  1,
 		},
 	}
 }
 func cConnHandler(c net.Conn) {
-	//返回一个拥有 默认size 的reader，接收客户端输入
-	//reader := bufio.NewReader(os.Stdin)
-	//缓存 conn 中的数据
-	//buf := make([]byte, 1024)
+	//这个client模拟的请求电梯操作
 	fmt.Println("请输入客户端请求数据...")
 	input := NewTestReqEle()
 	d := json.NewDecoder(c)
 	e := json.NewEncoder(c)
 	for {
 		e.Encode(input)
-		//客户端输入
-		//inputJson, err := json.Marshal(input)
-		//if err != nil {
-		//	log.Printf("Json marshal faild %v", err)
-		//}
-		////客户端请求数据写入 conn，并传输
-		//c.Write(inputJson)
-		//服务器端返回的数据写入空buf
-		//_, err = c.Read(buf)
 		var resultJson Res
 		err := d.Decode(&resultJson)
 		//err=json.Unmarshal(buf,&resultJson)
@@ -57,7 +44,7 @@ func cConnHandler(c net.Conn) {
 			continue
 		}
 		//回显服务器端回传的信息
-		fmt.Printf("\n服务器端回复结果%v,%s", resultJson.Result, resultJson.EleId)
+		fmt.Printf("\n服务器端回复结果%v,%s,%s", resultJson.Result, resultJson.EleId,resultJson.Error)
 		time.Sleep(time.Second * 2)
 	}
 }

@@ -2,27 +2,31 @@ package elevator
 
 import (
 	"errors"
+	"net"
 	"sync"
 )
 
 type (
 	ElevatorM interface {
 		Update(elevator *Elevator)
-		RightElevator(int64)(string, error)
+		RightElevator(int64) (string, error)
 	}
 	Elevator struct {
-	//电梯id    最终返回这个
-	//当前楼层   从连接中获取 ，需要取最优解
-	//当前状态   取空闲状态的电梯   繁忙/空闲/不可用
-	//临时状态	选中这个电梯之后临时变为繁忙状态，后续状态由心跳更新。
-	ElevatorId   string
-	Floor        int64
-	State        string
-	CurrentState string
-}
+		*net.TCPAddr
+		//电梯id    最终返回这个
+		//当前楼层   从连接中获取 ，需要取最优解
+		//当前状态   取空闲状态的电梯   繁忙/空闲/不可用
+		//临时状态	选中这个电梯之后临时变为繁忙状态，后续状态由心跳更新。
+		ElevatorId   string
+		Floor        int64
+		State        string
+		CurrentState string
+		IsInFloor    bool //电梯内是否有机器人 true 为在
+	}
 )
 
 type Elevators map[string]*Elevator
+
 //type ELs sync.Map
 var wg sync.RWMutex
 
@@ -61,7 +65,7 @@ func (els Elevators) RightElevator(start int64) (string, error) {
 			//midEl := els[key]
 			//midEl.CurrentState = "1"
 			//els.Update(midEl)
-			els[key].CurrentState="1"
+			els[key].CurrentState = "1"
 			return key, nil
 		}
 	} else {
@@ -76,7 +80,7 @@ func (els Elevators) RightElevator(start int64) (string, error) {
 	//midEl := els[elId]
 	//midEl.CurrentState = "1"
 	//els.Update(midEl)
-	els[elId].CurrentState="1"
+	els[elId].CurrentState = "1"
 	return elId, nil
 }
 
@@ -92,7 +96,7 @@ type OperationEl struct {
 	Elevator
 }
 
-func NewTestOperationEl()  *OperationEl{
+func NewTestOperationEl() *OperationEl {
 	return &OperationEl{
 		Operarion: "1",
 		Elevator:  Elevator{},
