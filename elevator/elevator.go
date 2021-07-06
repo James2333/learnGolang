@@ -12,7 +12,7 @@ type (
 		RightElevator(int64) (string, error)
 	}
 	Elevator struct {
-		*net.TCPAddr
+		Conn *net.Conn  //更新需要把这个conn也更新进去，之后向电梯发消息就是通过这个
 		//电梯id    最终返回这个
 		//当前楼层   从连接中获取 ，需要取最优解
 		//当前状态   取空闲状态的电梯   繁忙/空闲/不可用
