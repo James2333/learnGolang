@@ -61,7 +61,6 @@ func NewTcpService() {
 }
 
 func coonSt(c net.Conn) {
-	//1.conn是否有效
 	if c == nil {
 		log.Panic("conn无效")
 	}
@@ -75,7 +74,7 @@ func coonSt(c net.Conn) {
 	switch code {
 	//
 	case reply.UPDATE_ELE:
-		reply.UpdateElevator(c,els)
+		reply.ReplyUpdateElevator(c,els)
 	case reply.CHOOSE_ELE:
 		reply.ReplyRightElevator(c,els)
 	case reply.ARRIVED_START:

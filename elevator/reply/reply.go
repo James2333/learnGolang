@@ -7,6 +7,7 @@ import (
 	"learn101/elevator/packet"
 	"log"
 	"net"
+	"sync"
 )
 
 //初次解包先解开byte[0:2]前两个字节，转换成code，之后switch 这个code 跳转进不同的方法。
@@ -19,13 +20,15 @@ import (
 //向电梯发送任务结束，进入空闲状态 ELE_TO_FREE=2003
 //电梯管理需要向调度接受的信息:
 //CHOOSE_ELE    = 1002	调度请求最优电梯
-//IsInFloor     = 1005	机器人是否在电梯里面
+//ROBOT_In_Floor     = 1005 机器人是否进电梯里面
+//ROBOT_OUT_Floor     = 1006	机器人是否已经出电梯里面
 //电梯管理需要向电梯接受的信息:
 //UPDATE_ELE    = 1001	更新电梯信息
 //ARRIVED_START = 1003	电梯抵达起点楼层
 //ARRIVED_END   = 1004	电梯抵达终点楼层
 //请求一个电梯到结束任务的流程
-//调度请求最优电梯>请求电梯到起点楼层>电梯抵达起点楼层>向调度发送电梯已经抵达起点楼层>机器人是否在电梯里面>请求电剃到终点楼层>电梯抵达终点楼层>向调度发送电梯已经抵达终点楼层>机器人是否在电梯里面>向电梯发送任务结束，进入空闲状态
+//调度请求最优电梯>请求电梯到起点楼层>电梯抵达起点楼层>向调度发送电梯已经抵达起点楼层>机器人是否在电梯里面\n
+//>请求电剃到终点楼层>电梯抵达终点楼层>向调度发送电梯已经抵达终点楼层>机器人是否在电梯里面>向电梯发送任务结束，进入空闲状态
 const (
 	UPDATE_ELE      = 1001
 	CHOOSE_ELE      = 1002
@@ -54,10 +57,10 @@ type Task struct {
 	End        int64
 }
 type Tasks map[string]*Task
-
+var m sync.Mutex
 var tasks Tasks
 
-func UpdateElevator(c net.Conn, els elevator.Elevators) {
+func ReplyUpdateElevator(c net.Conn, els elevator.Elevators) {
 	q, err := packet.UnPacket(c)
 	if err != nil {
 		log.Println(err)
@@ -66,11 +69,11 @@ func UpdateElevator(c net.Conn, els elevator.Elevators) {
 	_ = json.Unmarshal(q.Content, &ele)
 	ele.Conn = &c
 	els.Update(&ele)
-	msg := Message{
-		bool:  true,
-		error: nil,
-	}
-	b := packet.Packet(msg, UPDATE_ELE)
+	//msg := Message{
+	//	bool:  true,
+	//	error: nil,
+	//}
+	b := packet.Packet("", UPDATE_ELE)
 	c.Write(b)
 }
 
@@ -89,10 +92,11 @@ func ReplyRightElevator(c net.Conn, els elevator.Elevators) {
 	}
 	task.ElevatorID = elID
 	els[elID].CurrentState = "1" //电梯变为繁忙状态 这个之后后面任务结束才能更新成空闲。
-	tasks[task.TaskID] = &task
-	tasks[task.TaskID].Conn = c
+	tasks[task.TaskID] = &task  //新增一个任务
+	tasks[task.TaskID].Conn = c //记录调度此次的连接信息，方便之后请求
 	ReqElevatorToStart(task.TaskID, els)
-	c.Write([]byte(elID))
+	buffer:=packet.Packet(task,CHOOSE_ELE)
+	c.Write(buffer)
 }
 
 //请求电梯到起点楼层
@@ -191,7 +195,9 @@ func ReqElevatorTaskEnd(taskid string, els elevator.Elevators) {
 	els[tasks[taskid].ElevatorID].IsInFloor = false
 	els[tasks[taskid].ElevatorID].CurrentState = "0"
 	c := *els[tasks[taskid].ElevatorID].Conn
+	m.Lock()
 	delete(tasks, taskid) //删除任务
+	m.Unlock()
 	buffer := packet.Packet("任务结束，进入空闲状态", ELE_TO_FREE)
 	c.Write(buffer)
 	return

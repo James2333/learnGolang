@@ -37,6 +37,16 @@ func NewElevators() Elevators {
 func (els Elevators) Update(el *Elevator) {
 	wg.RLock()
 	defer wg.RUnlock()
+	//如果CurrentState不为0则不允许更新。
+	if ele,ok:=els[el.ElevatorId];ok{
+		if ele.CurrentState!="0"{
+			return
+		}else {
+			els[el.ElevatorId] = el
+			return
+		}
+
+	}
 	//有电梯信息则覆盖，无则新增
 	els[el.ElevatorId] = el
 }
