@@ -41,11 +41,7 @@ func (els Elevators) Update(el *Elevator) {
 	if ele,ok:=els[el.ElevatorId];ok{
 		if ele.CurrentState!="0"{
 			return
-		}else {
-			els[el.ElevatorId] = el
-			return
 		}
-
 	}
 	//有电梯信息则覆盖，无则新增
 	els[el.ElevatorId] = el

@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -10,8 +8,8 @@ import (
 	"learn101/elevator"
 	"log"
 	"net/http"
-	"os"
 	"reflect"
+	"runtime"
 	"time"
 )
 
@@ -111,55 +109,120 @@ func (p *Package) String() string {
 		p.Msg,
 	)
 }
+func CreateContainer(w http.ResponseWriter,r *http.Request)  {
+	container := make([]byte,1024*1024*100)
+	for i:=0;i<len(container);i++{
+		container[i]=0
+	}
 
+}
 func main() {
-	<-time.After(time.Second)
-	hostname, err := os.Hostname()
-	if err != nil {
-		log.Fatal(err)
-	}
 
-	pack := &Package{
-		Version:        [2]byte{'V', '1'},
-		Timestamp:      time.Now().Unix(),
-		HostnameLength: int16(len(hostname)),
-		Hostname:       []byte(hostname),
-		TagLength:      4,
-		Tag:            []byte("demo"),
-		Msg:            []byte(("现在时间是:" + time.Now().Format("2006-01-02 15:04:05"))),
-	}
-	pack.Length = 8 + 2 + pack.HostnameLength + 2 + pack.TagLength + int16(len(pack.Msg))
 
-	buf := new(bytes.Buffer)
-	// 写入四次，模拟TCP粘包效果
-	pack.Pack(buf)
-	pack.Pack(buf)
-	pack.Pack(buf)
-	pack.Pack(buf)
-	// scanner
-	scanner := bufio.NewScanner(buf)
-	scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
-		if !atEOF && data[0] == 'V' {
-			if len(data) > 4 {
-				length := int16(0)
-				binary.Read(bytes.NewReader(data[2:4]), binary.BigEndian, &length)
-				if int(length)+4 <= len(data) {
-					return int(length) + 4, data[:int(length)+4], nil
-				}
-			}
+	runtime.GOMAXPROCS(1)
+	go func(){
+		fmt.Println("hello world")
+		// panic("hello world")  // 强制观察输出
+	}()
+	go func(){
+		for {
+			time.Sleep(time.Second)
+			//fmt.Println("aaa")  // 非内联函数，这行注释打开，将导致 hello world 的输出
 		}
-		return
-	})
-	for scanner.Scan() {
-		scannedPack := new(Package)
-		scannedPack.Unpack(bytes.NewReader(scanner.Bytes()))
-		log.Println(scannedPack)
-	}
-	if err := scanner.Err(); err != nil {
-		log.Fatal("无效数据包")
-	}
+	}()
+	select {}
+
+	//sumfunc:=make([]func(),10)
+	//sumfunc=append(sumfunc, func() {
+	//	fmt.Println("zbc")
+	//})
+	//for k,v:=range sumfunc{
+	//	fmt.Println(k,v)
+	//}
+	//sumfunc[10]()
+	//chans:=make(chan int,10)
+	//sum:=make([]int,10)
+	//for i:=range sum{
+	//	sum[i]=i
+	//}
+	//reverce(sum,chans)
+	//for i:=range sum{
+	//	sum[i]=<-chans
+	//}
+	//for i:=range sum{
+	//	fmt.Println(sum[i])
+	//}
+	//http.Handle("/",CreateContainer)
+	//log.Fatal(http.ListenAndServe(":8080", nil))
+
+	//var i interface{}
+	//i = &sli
+	//fmt.Println(i)
+	//sli[0]=10
+	//fmt.Println(i)
+	//v := []int{1, 2, 3}
+	//for i := range v {
+	//	v = append(v, i)
+	//}
+	//for _,v := range v {
+	//	fmt.Println(v)
+	//}
+	//<-time.After(time.Second)
+	//hostname, err := os.Hostname()
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+	//
+	//pack := &Package{
+	//	Version:        [2]byte{'V', '1'},
+	//	Timestamp:      time.Now().Unix(),
+	//	HostnameLength: int16(len(hostname)),
+	//	Hostname:       []byte(hostname),
+	//	TagLength:      4,
+	//	Tag:            []byte("demo"),
+	//	Msg:            []byte(("现在时间是:" + time.Now().Format("2006-01-02 15:04:05"))),
+	//}
+	//pack.Length = 8 + 2 + pack.HostnameLength + 2 + pack.TagLength + int16(len(pack.Msg))
+	//
+	//buf := new(bytes.Buffer)
+	//// 写入四次，模拟TCP粘包效果
+	//pack.Pack(buf)
+	//pack.Pack(buf)
+	//pack.Pack(buf)
+	//pack.Pack(buf)
+	//// scanner
+	//scanner := bufio.NewScanner(buf)
+	//scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	//	if !atEOF && data[0] == 'V' {
+	//		if len(data) > 4 {
+	//			length := int16(0)
+	//			binary.Read(bytes.NewReader(data[2:4]), binary.BigEndian, &length)
+	//			if int(length)+4 <= len(data) {
+	//				return int(length) + 4, data[:int(length)+4], nil
+	//			}
+	//		}
+	//	}
+	//	return
+	//})
+	//for scanner.Scan() {
+	//	scannedPack := new(Package)
+	//	scannedPack.Unpack(bytes.NewReader(scanner.Bytes()))
+	//	log.Println(scannedPack)
+	//}
+	//if err := scanner.Err(); err != nil {
+	//	log.Fatal("无效数据包")
+	//}
 }
 
+func reverce(s []int,chans chan int) []int {
+	for i:=range s{
+		defer func(i int)  {
+			chans<-i
+		}(i)
+
+	}
+	return s
+}
 //func main() {
 //	////接口类型的数组，只要实现这个接口的结构体都可被append进去。
 //	//sts:=NewWorkRun()

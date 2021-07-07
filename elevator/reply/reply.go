@@ -51,12 +51,13 @@ type Message struct {
 }
 type Task struct {
 	net.Conn
-	ElevatorID string
-	TaskID     string
-	Start      int64
-	End        int64
+	ElevatorID string `json:"elevator_id"`
+	TaskID     string `json:"task_id"`
+	Start      int64  `json:"start"`
+	End        int64  `json:"end"`
 }
 type Tasks map[string]*Task
+
 var m sync.Mutex
 var tasks Tasks
 
@@ -91,11 +92,11 @@ func ReplyRightElevator(c net.Conn, els elevator.Elevators) {
 		return
 	}
 	task.ElevatorID = elID
-	els[elID].CurrentState = "1" //电梯变为繁忙状态 这个之后后面任务结束才能更新成空闲。
-	tasks[task.TaskID] = &task  //新增一个任务
-	tasks[task.TaskID].Conn = c //记录调度此次的连接信息，方便之后请求
+	els[elID].CurrentState = "1" //电梯变为繁忙状态 这个后面任务结束才能更新成空闲。
+	tasks[task.TaskID] = &task   //新增一个任务
+	tasks[task.TaskID].Conn = c  //记录调度此次的连接信息，方便之后请求
 	ReqElevatorToStart(task.TaskID, els)
-	buffer:=packet.Packet(task,CHOOSE_ELE)
+	buffer := packet.Packet(task, CHOOSE_ELE)
 	c.Write(buffer)
 }
 
@@ -164,7 +165,7 @@ func ReplyRobotOutFloor(c net.Conn, els elevator.Elevators) {
 	task = *tasks[task.TaskID]
 
 	els[task.ElevatorID].IsInFloor = false
-	ReqElevatorTaskEnd(task.ElevatorID, els) //请求电梯到终点楼层
+	ReqElevatorTaskEnd(task.TaskID, els) //请求电梯到终点楼层
 	return
 }
 

@@ -62,7 +62,8 @@ func NewTcpService() {
 
 func coonSt(c net.Conn) {
 	if c == nil {
-		log.Panic("conn无效")
+		log.Println("conn无效")
+		return
 	}
 	//此处应该先 解包识别byte[0:2]的code 然后去传入 不同的方法。
 	head := make([]byte, packet.HEADER_LEN)
