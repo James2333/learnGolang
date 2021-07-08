@@ -25,7 +25,9 @@ type (
 	}
 )
 
+
 type Elevators map[string]*Elevator
+var els Elevators
 
 //type ELs sync.Map
 var wg sync.RWMutex
@@ -34,17 +36,18 @@ func NewElevators() Elevators {
 	return Elevators{}
 }
 
-func (els Elevators) Update(el *Elevator) {
+func (els Elevators) Update(el *Elevator) error{
 	wg.RLock()
 	defer wg.RUnlock()
 	//如果CurrentState不为0则不允许更新。
 	if ele,ok:=els[el.ElevatorId];ok{
 		if ele.CurrentState!="0"{
-			return
+			return errors.New("当前状态不允许更新")
 		}
 	}
 	//有电梯信息则覆盖，无则新增
 	els[el.ElevatorId] = el
+	return nil
 }
 
 func (els Elevators) RightElevator(start int64) (string, error) {
@@ -91,21 +94,22 @@ func (els Elevators) RightElevator(start int64) (string, error) {
 }
 
 func Abs(n int64) int64 {
+	//els["zbc"]=nil
 	if n < 0 {
 		return -n
 	}
 	return n
 }
 
-type OperationEl struct {
-	Operarion string
-	Elevator
-}
-
-func NewTestOperationEl() *OperationEl {
-	return &OperationEl{
-		Operarion: "1",
-		Elevator:  Elevator{},
-	}
-
-}
+//type OperationEl struct {
+//	Operarion string
+//	Elevator
+//}
+//
+//func NewTestOperationEl() *OperationEl {
+//	return &OperationEl{
+//		Operarion: "1",
+//		Elevator:  Elevator{},
+//	}
+//
+//}

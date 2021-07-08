@@ -1,12 +1,14 @@
 package elevatorTcpClient
 
 import (
-	"bytes"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
+	"io"
+	"learn101/elevator/packet"
+	"learn101/elevator/reply"
+	"learn101/elevator/simlate"
+	"log"
 	"net"
-	"time"
 )
 
 /**
@@ -18,34 +20,34 @@ import (
          c -> buf (空buf)
   客户端 和 服务器端都有 Close conn 的功能
 */
-
-func NewTestReqEle() *ReqEl {
-	return &ReqEl{
-		Operation: "1",
-		ReqEle: ReqEle{
-			TaskId: "111",
-			Start:  1,
-		},
-	}
-}
 func cConnHandler(c net.Conn) {
+	if c == nil {
+		log.Println("conn无效")
+		return
+	}
+	defer func() {
+		log.Println("disconnect",c.RemoteAddr().String())
+		c.Close()
+	}()
 	//这个client模拟的请求电梯操作
-	fmt.Println("请输入客户端请求数据...")
-	input := NewTestReqEle()
-	d := json.NewDecoder(c)
-	e := json.NewEncoder(c)
-	for {
-		e.Encode(input)
-		var resultJson Res
-		err := d.Decode(&resultJson)
-		//err=json.Unmarshal(buf,&resultJson)
+	log.Println("客户端建立连接成功...")
+	//模拟发起一次任务
+	task1:=reply.Task{
+		TaskID:     "111",
+		Start:      3,
+		End:        5,
+	}
+	NewTestTask(c,task1)
+
+	for  {
+		//此处应该先 解包识别byte[0:2]的code 然后去传入 不同的方法。
+		head := make([]byte, packet.HEADER_LEN)
+		_, err := io.ReadFull(c, head) //读取头部的2个字节
 		if err != nil {
-			fmt.Printf("客户端解析数据失败 %s\n", err)
-			continue
+			log.Println(err)
 		}
-		//回显服务器端回传的信息
-		fmt.Printf("\n服务器端回复结果%v,%s,%s", resultJson.Result, resultJson.EleId,resultJson.Error)
-		time.Sleep(time.Second * 2)
+		code := binary.BigEndian.Uint16(head)
+		simlate.ParseCodeScheduling(code,c)
 	}
 }
 
@@ -55,20 +57,11 @@ func NewClientSocket() {
 		fmt.Println("客户端建立连接失败")
 		return
 	}
-
 	cConnHandler(conn)
 }
 
-func IntToBytes(n int) []byte {
-	data := int64(n)
-	bytebuf := bytes.NewBuffer([]byte{})
-	binary.Write(bytebuf, binary.BigEndian, data)
-	return bytebuf.Bytes()
+func NewTestTask(c net.Conn,task reply.Task)  {
+	b:=packet.Packet(task,reply.CHOOSE_ELE)
+	c.Write(b)
 }
 
-func BytesToInt(bys []byte) int {
-	bytebuff := bytes.NewBuffer(bys)
-	var data int64
-	binary.Read(bytebuff, binary.BigEndian, &data)
-	return int(data)
-}

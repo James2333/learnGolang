@@ -1,44 +1,34 @@
 package elevatorTcpClient
 
 import (
-	"encoding/json"
+	"encoding/binary"
 	"fmt"
+	"io"
+	"learn101/elevator/packet"
+	"learn101/elevator/simlate"
 	"log"
 	"net"
-	"time"
 )
 
 func ccConnHandler(c net.Conn) {
-	input := &ReqEl{
-		Operation: "0",
-		ReqEle: ReqEle{
-			State: "0",
-			Floor: 1,
-			EleId: "5",
-		},
+	if c == nil {
+		log.Println("conn无效")
+		return
 	}
-	//inputJson, err := json.Marshal(input)
-	d := json.NewDecoder(c)
-	e := json.NewEncoder(c)
-	for {
-		e.Encode(input)
-
-		var msg Res
-		err := d.Decode(&msg)
+	defer func() {
+		log.Println("disconnect",c.RemoteAddr().String())
+		c.Close()
+	}()
+	simlate.ReqUpdateElevator(c)//触发一次更新操作
+	for  {
+		//此处应该先 解包识别byte[0:2]的code 然后去传入 不同的方法。
+		head := make([]byte, packet.HEADER_LEN)
+		_, err := io.ReadFull(c, head) //读取头部的2个字节
 		if err != nil {
-			log.Printf("decode service msg faild %v", err)
+			log.Println(err)
 		}
-		fmt.Printf("收到服务器返回信息%v,%s,%s\n", msg.Result, msg.EleId,msg.Error)
-		//服务器端返回的数据写入空buf
-		//cnt, err := c.Read(buf)
-		//
-		//if err != nil {
-		//	fmt.Printf("客户端读取数据失败 %s\n", err)
-		//	continue
-		//}
-		////回显服务器端回传的信息
-		//fmt.Print("\n服务器端回复" + string(buf[0:cnt]))
-		time.Sleep(time.Second * 10)
+		code := binary.BigEndian.Uint16(head)
+		simlate.ParseCodeElevator(code,c)
 	}
 }
 

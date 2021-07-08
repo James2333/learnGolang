@@ -61,6 +61,9 @@ type Tasks map[string]*Task
 var m sync.Mutex
 var tasks Tasks
 
+
+
+//更新电梯信息
 func ReplyUpdateElevator(c net.Conn, els elevator.Elevators) {
 	q, err := packet.UnPacket(c)
 	if err != nil {
@@ -69,7 +72,12 @@ func ReplyUpdateElevator(c net.Conn, els elevator.Elevators) {
 	var ele elevator.Elevator
 	_ = json.Unmarshal(q.Content, &ele)
 	ele.Conn = &c
-	els.Update(&ele)
+	err=els.Update(&ele)
+	if err != nil {
+		b:=packet.Packet("",ERROR)
+		c.Write(b)
+		return
+	}
 	//msg := Message{
 	//	bool:  true,
 	//	error: nil,
@@ -88,10 +96,11 @@ func ReplyRightElevator(c net.Conn, els elevator.Elevators) {
 	_ = json.Unmarshal(q.Content, &task)
 	elID, err := els.RightElevator(task.Start)
 	if err != nil {
-		c.Write([]byte("当前无电梯可用！"))
+		b:=packet.Packet("",ERROR)
+		c.Write(b)
 		return
 	}
-	task.ElevatorID = elID
+	task.ElevatorID = elID      //把电梯id加到这个task里面去
 	els[elID].CurrentState = "1" //电梯变为繁忙状态 这个后面任务结束才能更新成空闲。
 	tasks[task.TaskID] = &task   //新增一个任务
 	tasks[task.TaskID].Conn = c  //记录调度此次的连接信息，方便之后请求
@@ -193,8 +202,10 @@ func ReplyElevatorArriveEnd(c net.Conn) {
 
 //向电梯发送任务结束，进入空闲状态
 func ReqElevatorTaskEnd(taskid string, els elevator.Elevators) {
+	//更新电梯信息，防止心跳不及时。
 	els[tasks[taskid].ElevatorID].IsInFloor = false
 	els[tasks[taskid].ElevatorID].CurrentState = "0"
+	els[tasks[taskid].ElevatorID].Floor=tasks[taskid].End
 	c := *els[tasks[taskid].ElevatorID].Conn
 	m.Lock()
 	delete(tasks, taskid) //删除任务
