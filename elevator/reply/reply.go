@@ -5,8 +5,8 @@ import (
 	"errors"
 	"learn101/elevator"
 	"learn101/elevator/packet"
+	"learn101/elevator/session"
 	"log"
-	"net"
 	"sync"
 )
 
@@ -50,7 +50,7 @@ type Message struct {
 	error
 }
 type Task struct {
-	net.Conn
+	Sess       *session.Session
 	ElevatorID string `json:"elevator_id"`
 	TaskID     string `json:"task_id"`
 	Start      int64  `json:"start"`
@@ -61,21 +61,39 @@ type Tasks map[string]*Task
 var m sync.Mutex
 var tasks Tasks
 
+func init()  {
+	tasks=make(map[string]*Task)
+}
 
+func (tasks Tasks)AddTask(t *Task) error {
+	m.Lock()
+	defer m.Unlock()
+	if task,ok:=tasks[t.TaskID];ok{
+		log.Println("此任务已存在ID：",task.TaskID)
+		return errors.New("此任务已存在")
+	}
+	tasks[t.TaskID] = t
+	return nil
 
-//更新电梯信息
-func ReplyUpdateElevator(c net.Conn, els elevator.Elevators) {
-	q, err := packet.UnPacket(c)
+}
+//更新电梯信息,初次连接相当于注册，需要初始化sess信息
+func ReplyUpdateElevator(s *session.Session, els elevator.Elevators) {
+	log.Println("触发了一次更新操作")
+	q, err := packet.UnPacket(s.C)
 	if err != nil {
 		log.Println(err)
 	}
 	var ele elevator.Elevator
-	_ = json.Unmarshal(q.Content, &ele)
-	ele.Conn = &c
-	err=els.Update(&ele)
+	err = json.Unmarshal(q.Content, &ele)
 	if err != nil {
-		b:=packet.Packet("",ERROR)
-		c.Write(b)
+		log.Println("json unmarshal faild:", err)
+	}
+	log.Println("客户端传来的信息", ele)
+	ele.Sess = s
+	err = els.Update(&ele)
+	if err != nil {
+		b := packet.Packet("", ERROR)
+		s.Ch <- b
 		return
 	}
 	//msg := Message{
@@ -83,43 +101,49 @@ func ReplyUpdateElevator(c net.Conn, els elevator.Elevators) {
 	//	error: nil,
 	//}
 	b := packet.Packet("", UPDATE_ELE)
-	c.Write(b)
+	s.Ch <- b
 }
 
 //调度请求最优电梯
-func ReplyRightElevator(c net.Conn, els elevator.Elevators) {
-	q, err := packet.UnPacket(c)
+func ReplyRightElevator(s *session.Session, els elevator.Elevators) {
+	q, err := packet.UnPacket(s.C)
 	if err != nil {
 		log.Println(err)
 	}
 	var task Task
-	_ = json.Unmarshal(q.Content, &task)
+	err = json.Unmarshal(q.Content, &task)
+	if err != nil {
+		log.Println("json unmarshal faild:", err)
+	}
+	log.Printf("客户端传来的信息ElevatorID:%s,TaskID:%s,Start:%d,End:%d", task.ElevatorID,task.TaskID,task.Start,task.ElevatorID)
 	elID, err := els.RightElevator(task.Start)
 	if err != nil {
-		b:=packet.Packet("",ERROR)
-		c.Write(b)
+		b := packet.Packet("", ERROR)
+		s.Ch <- b
 		return
 	}
-	task.ElevatorID = elID      //把电梯id加到这个task里面去
+	task.ElevatorID = elID       //把电梯id加到这个task里面去
+	log.Printf("任务选用电梯之后ElevatorID:%s,TaskID:%s,Start:%d,End:%d", task.ElevatorID,task.TaskID,task.Start,task.ElevatorID)
 	els[elID].CurrentState = "1" //电梯变为繁忙状态 这个后面任务结束才能更新成空闲。
-	tasks[task.TaskID] = &task   //新增一个任务
-	tasks[task.TaskID].Conn = c  //记录调度此次的连接信息，方便之后请求
+	tasks.AddTask(&task)   //新增一个任务
+	tasks[task.TaskID].Sess = s  //记录调度此次的连接信息，方便之后请求
 	ReqElevatorToStart(task.TaskID, els)
 	buffer := packet.Packet(task, CHOOSE_ELE)
-	c.Write(buffer)
+	s.Ch <- buffer
 }
 
 //请求电梯到起点楼层
 func ReqElevatorToStart(taskid string, els elevator.Elevators) {
-	c := *els[tasks[taskid].ElevatorID].Conn
+	log.Printf("正在请求电梯去往起点楼层")
+	elSess := els[tasks[taskid].ElevatorID].Sess
 	//把整个task发出去
-	buffer := packet.Packet(tasks[taskid], ELE_TO_START)
-	c.Write(buffer)
+	buffer := packet.Packet(*tasks[taskid], ELE_TO_START)
+	elSess.Ch <- buffer
 }
 
 //电梯抵达起点楼层
-func ReplyElevatorArriveStart(c net.Conn) {
-	q, err := packet.UnPacket(c)
+func ReplyElevatorArriveStart(s *session.Session) {
+	q, err := packet.UnPacket(s.C)
 	if err != nil {
 		log.Println(err)
 	}
@@ -132,25 +156,25 @@ func ReplyElevatorArriveStart(c net.Conn) {
 
 //向调度发送电梯已经抵达起点楼层
 func ReqElevatorArriveStart(taskid string) {
-	c := tasks[taskid].Conn
+	tSess := tasks[taskid].Sess
 	//把整个task发出去
 	buffer := packet.Packet(tasks[taskid], ROBOT_START)
-	c.Write(buffer)
+	tSess.Ch <- buffer
 	return
 }
 
 //向调度发送电梯已经抵达终点楼层
 func ReqElevatorArriveEnd(taskid string) {
-	c := tasks[taskid].Conn
+	tSess := tasks[taskid].Sess
 	//把整个task发出去
-	buffer := packet.Packet(tasks[taskid], ROBOT_END)
-	c.Write(buffer)
+	buffer := packet.Packet(*tasks[taskid], ROBOT_END)
+	tSess.Ch <- buffer
 	return
 }
 
 //机器人是否进电梯里面
-func ReplyRobotInFloor(c net.Conn, els elevator.Elevators) {
-	q, err := packet.UnPacket(c)
+func ReplyRobotInFloor(s *session.Session, els elevator.Elevators) {
+	q, err := packet.UnPacket(s.C)
 	if err != nil {
 		log.Println(err)
 	}
@@ -164,8 +188,8 @@ func ReplyRobotInFloor(c net.Conn, els elevator.Elevators) {
 }
 
 //机器人是否已经出电梯里面
-func ReplyRobotOutFloor(c net.Conn, els elevator.Elevators) {
-	q, err := packet.UnPacket(c)
+func ReplyRobotOutFloor(s *session.Session, els elevator.Elevators) {
+	q, err := packet.UnPacket(s.C)
 	if err != nil {
 		log.Println(err)
 	}
@@ -180,16 +204,16 @@ func ReplyRobotOutFloor(c net.Conn, els elevator.Elevators) {
 
 //请求电梯到终点楼层
 func ReqElevatorToEnd(taskid string, els elevator.Elevators) {
-	c := *els[tasks[taskid].ElevatorID].Conn
+	elSess := els[tasks[taskid].ElevatorID].Sess
 	//把整个task发出去
-	buffer := packet.Packet(tasks[taskid], ELE_TO_END)
-	c.Write(buffer)
+	buffer := packet.Packet(*tasks[taskid], ELE_TO_END)
+	elSess.Ch <- buffer
 	return
 }
 
 //电梯抵达终点楼层
-func ReplyElevatorArriveEnd(c net.Conn) {
-	q, err := packet.UnPacket(c)
+func ReplyElevatorArriveEnd(s *session.Session) {
+	q, err := packet.UnPacket(s.C)
 	if err != nil {
 		log.Println(err)
 	}
@@ -205,19 +229,19 @@ func ReqElevatorTaskEnd(taskid string, els elevator.Elevators) {
 	//更新电梯信息，防止心跳不及时。
 	els[tasks[taskid].ElevatorID].IsInFloor = false
 	els[tasks[taskid].ElevatorID].CurrentState = "0"
-	els[tasks[taskid].ElevatorID].Floor=tasks[taskid].End
-	c := *els[tasks[taskid].ElevatorID].Conn
+	els[tasks[taskid].ElevatorID].Floor = tasks[taskid].End
+	s := els[tasks[taskid].ElevatorID].Sess
 	m.Lock()
 	delete(tasks, taskid) //删除任务
 	m.Unlock()
 	buffer := packet.Packet("任务结束，进入空闲状态", ELE_TO_FREE)
-	c.Write(buffer)
+	s.Ch <- buffer
 	return
 }
 
 //错误返回
-func ReplyError(c net.Conn) {
+func ReplyError(s *session.Session) {
 	buffer := packet.Packet(errors.New("404 not found"), ERROR)
-	c.Write(buffer)
+	s.Ch <- buffer
 	return
 }

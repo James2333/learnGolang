@@ -4,24 +4,24 @@ import (
 	"encoding/json"
 	"learn101/elevator/packet"
 	"learn101/elevator/reply"
+	"learn101/elevator/session"
 	"log"
-	"net"
 	"time"
 )
 
-func ParseCodeScheduling(code uint16, c net.Conn) {
+func ParseCodeScheduling(code uint16, s *session.Session) {
 	switch code {
 	case reply.ROBOT_START:
-		ReqRobotInStart(c)
+		ReqRobotInStart(s)
 	case reply.ROBOT_END:
-		ReqRobotOutEnd(c)
+		ReqRobotOutEnd(s)
 	default:
-		reply.ReplyError(c)
+		reply.ReplyError(s)
 	}
 }
 
-func ReqRobotInStart(c net.Conn) {
-	q, err := packet.UnPacket(c)
+func ReqRobotInStart(s *session.Session) {
+	q, err := packet.UnPacket(s.C)
 	if err != nil {
 		log.Println(err)
 	}
@@ -31,12 +31,12 @@ func ReqRobotInStart(c net.Conn) {
 	time.Sleep(time.Second * 5)
 	log.Println("机器人已经进入电梯了")
 	b := packet.Packet(task, reply.ROBOT_In_Floor)
-	c.Write(b)
+	s.Ch<-b
 }
 
 
-func ReqRobotOutEnd(c net.Conn) {
-	q, err := packet.UnPacket(c)
+func ReqRobotOutEnd(s *session.Session) {
+	q, err := packet.UnPacket(s.C)
 	if err != nil {
 		log.Println(err)
 	}
@@ -46,5 +46,5 @@ func ReqRobotOutEnd(c net.Conn) {
 	time.Sleep(time.Second * 5)
 	log.Println("机器人已经出电梯了")
 	b := packet.Packet(task, reply.ROBOT_OUT_Floor)
-	c.Write(b)
+	s.Ch<-b
 }

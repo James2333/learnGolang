@@ -2,7 +2,8 @@ package elevator
 
 import (
 	"errors"
-	"net"
+	"learn101/elevator/session"
+	"log"
 	"sync"
 )
 
@@ -12,7 +13,7 @@ type (
 		RightElevator(int64) (string, error)
 	}
 	Elevator struct {
-		Conn *net.Conn  //更新需要把这个conn也更新进去，之后向电梯发消息就是通过这个
+		Sess *session.Session //更新需要把这个conn也更新进去，之后向电梯发消息就是通过这个
 		//电梯id    最终返回这个
 		//当前楼层   从连接中获取 ，需要取最优解
 		//当前状态   取空闲状态的电梯   繁忙/空闲/不可用
@@ -27,10 +28,15 @@ type (
 
 
 type Elevators map[string]*Elevator
-var els Elevators
+var Els Elevators
 
 //type ELs sync.Map
 var wg sync.RWMutex
+
+func init()  {
+	Els=NewElevators()
+}
+
 
 func NewElevators() Elevators {
 	return Elevators{}
@@ -42,10 +48,12 @@ func (els Elevators) Update(el *Elevator) error{
 	//如果CurrentState不为0则不允许更新。
 	if ele,ok:=els[el.ElevatorId];ok{
 		if ele.CurrentState!="0"{
+			log.Printf("电梯ID:%s当前不允许更新",ele.ElevatorId)
 			return errors.New("当前状态不允许更新")
 		}
 	}
 	//有电梯信息则覆盖，无则新增
+	el.CurrentState="0"
 	els[el.ElevatorId] = el
 	return nil
 }
@@ -100,7 +108,38 @@ func Abs(n int64) int64 {
 	}
 	return n
 }
-
+func NewTestEls() Elevators {
+	els := NewElevators()
+	el1 := &Elevator{
+		ElevatorId:   "1",
+		Floor:        3,
+		State:        "0",
+		CurrentState: "1",
+	}
+	el2 := &Elevator{
+		ElevatorId:   "2",
+		Floor:        2,
+		State:        "0",
+		CurrentState: "1",
+	}
+	el3 := &Elevator{
+		ElevatorId:   "3",
+		Floor:        1,
+		State:        "0",
+		CurrentState: "0",
+	}
+	el4 := &Elevator{
+		ElevatorId:   "4",
+		Floor:        -1,
+		State:        "0",
+		CurrentState: "0",
+	}
+	els.Update(el1)
+	els.Update(el2)
+	els.Update(el3)
+	els.Update(el4)
+	return els
+}
 //type OperationEl struct {
 //	Operarion string
 //	Elevator

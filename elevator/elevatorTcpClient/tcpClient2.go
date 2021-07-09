@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"io"
 	"learn101/elevator/packet"
+	"learn101/elevator/session"
 	"learn101/elevator/simlate"
 	"log"
 	"net"
 )
 
 func ccConnHandler(c net.Conn) {
+	in := make(chan []byte, 16)
+	sess := session.NewSession(c,in)
 	if c == nil {
 		log.Println("conn无效")
 		return
@@ -19,7 +22,15 @@ func ccConnHandler(c net.Conn) {
 		log.Println("disconnect",c.RemoteAddr().String())
 		c.Close()
 	}()
-	simlate.ReqUpdateElevator(c)//触发一次更新操作
+	go func() {
+		for {
+			select {
+			case msg := <-in:
+				c.Write(msg)
+			}
+		}
+	}()
+	simlate.ReqUpdateElevator(sess)//触发一次更新操作
 	for  {
 		//此处应该先 解包识别byte[0:2]的code 然后去传入 不同的方法。
 		head := make([]byte, packet.HEADER_LEN)
@@ -28,7 +39,7 @@ func ccConnHandler(c net.Conn) {
 			log.Println(err)
 		}
 		code := binary.BigEndian.Uint16(head)
-		simlate.ParseCodeElevator(code,c)
+		simlate.ParseCodeElevator(code,sess)
 	}
 }
 
@@ -38,7 +49,7 @@ func NewClientSocket2() {
 		fmt.Println("客户端建立连接失败")
 		return
 	}
-	fmt.Println("与服务端建立连接成功...")
+	log.Println("与服务端建立连接成功...")
 
 	ccConnHandler(conn)
 }

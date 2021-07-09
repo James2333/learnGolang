@@ -1,13 +1,16 @@
 package session
 
+import "net"
 
 type Session struct {
-	ch chan []byte
-	*manager.Player
+	Ch chan []byte
+	C net.Conn
 }
-
-func NewSession(ch chan []byte) *Session {
+//实现类似注册的功能，每条连接都会新生成一个session。
+//想向其他的连接里面写值，就获取他的session，然后向channel里面写值
+func NewSession(c net.Conn,ch chan []byte) *Session {
 	s := &Session{}
-	s.ch = ch
+	s.Ch = ch
+	s.C=c
 	return s
 }

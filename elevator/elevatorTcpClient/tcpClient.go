@@ -6,6 +6,7 @@ import (
 	"io"
 	"learn101/elevator/packet"
 	"learn101/elevator/reply"
+	"learn101/elevator/session"
 	"learn101/elevator/simlate"
 	"log"
 	"net"
@@ -21,15 +22,25 @@ import (
   客户端 和 服务器端都有 Close conn 的功能
 */
 func cConnHandler(c net.Conn) {
+	//这个client模拟的调度请求电梯操作
 	if c == nil {
 		log.Println("conn无效")
 		return
 	}
+	in := make(chan []byte, 16)
+	sess := session.NewSession(c,in)
 	defer func() {
 		log.Println("disconnect",c.RemoteAddr().String())
 		c.Close()
 	}()
-	//这个client模拟的请求电梯操作
+	go func() {
+		for {
+			select {
+			case msg := <-in:
+				c.Write(msg)
+			}
+		}
+	}()
 	log.Println("客户端建立连接成功...")
 	//模拟发起一次任务
 	task1:=reply.Task{
@@ -37,8 +48,7 @@ func cConnHandler(c net.Conn) {
 		Start:      3,
 		End:        5,
 	}
-	NewTestTask(c,task1)
-
+	NewTestTask(sess,task1)
 	for  {
 		//此处应该先 解包识别byte[0:2]的code 然后去传入 不同的方法。
 		head := make([]byte, packet.HEADER_LEN)
@@ -47,7 +57,7 @@ func cConnHandler(c net.Conn) {
 			log.Println(err)
 		}
 		code := binary.BigEndian.Uint16(head)
-		simlate.ParseCodeScheduling(code,c)
+		simlate.ParseCodeScheduling(code,sess)
 	}
 }
 
@@ -60,8 +70,8 @@ func NewClientSocket() {
 	cConnHandler(conn)
 }
 
-func NewTestTask(c net.Conn,task reply.Task)  {
+func NewTestTask(s *session.Session,task reply.Task)  {
 	b:=packet.Packet(task,reply.CHOOSE_ELE)
-	c.Write(b)
+	s.Ch<-b
 }
 

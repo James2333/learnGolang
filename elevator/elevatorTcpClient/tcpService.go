@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"github.com/golang/glog"
 	"learn101/elevator/reply"
+	"learn101/elevator/session"
 	"time"
 
 	//"encoding/json"
@@ -27,7 +28,7 @@ func NewTcpService() {
 		return
 	}
 	fmt.Println("listen Start...:")
-	els = NewTestEls()
+	//els := NewTestEls()
 	fmt.Println("初始化电梯数据...")
 	for {
 		//2.接收客户端的链接
@@ -37,17 +38,15 @@ func NewTcpService() {
 			continue
 		}
 		//3.开启一个Goroutine，处理链接
-		go coonSt(conn)
+		go connSt(conn)
 	}
 }
 
 func connSt(c net.Conn)  {
 	in := make(chan []byte, 16)
-	//sess := session.NewSession(in)
-	//registry.Register()
+	sess := session.NewSession(c,in)
 	defer func() {
 		glog.Info("disconnect:" + c.RemoteAddr().String())
-		//sess.OffLine()
 		c.Close()
 	}()
 	go func() {
@@ -58,35 +57,16 @@ func connSt(c net.Conn)  {
 			}
 		}
 	}()
-	for {
-		buf := make([]byte, 1024)
-		_, err := c.Read(buf)
-		//err==io.EOF{}
-		if err != nil {
-			return
-		}
-		//c, data := packet.UnPacket(buf[:n])
-		//in <- executeHandler(c, sess, data)
-	}
-}
-func coonSt(c net.Conn) {
-	//in := make(chan []byte, 16)
-	//sess := session.NewSession(in)
-	defer func() {
-		log.Println("disconnect",c.RemoteAddr().String())
-		c.Close()
-	}()
-	//打印电梯信息
-	go func() {
-		for  {
-			log.Println(".................")
-			for _,j:=range els{
-				log.Printf("ElevatorId:%s,Floor:%d,State:%s,CurrentState:%s,IsInFloor:%s\n",j.ElevatorId,j.Floor,j.State,j.CurrentState,j.IsInFloor)
+		go func() {
+			for  {
+				log.Println("打印电梯信息:")
+				for _,j:=range elevator.Els {
+					log.Printf("ElevatorId:%s,Floor:%d,State:%s,CurrentState:%s,IsInFloor:%t\n",j.ElevatorId,j.Floor,j.State,j.CurrentState,j.IsInFloor)
+				}
+				time.Sleep(time.Second*10)
 			}
-			time.Sleep(time.Second*10)
-		}
-	}()
-	for  {
+		}()
+	for {
 		//此处应该先 解包识别byte[0:2]的code 然后去传入 不同的方法。
 		head := make([]byte, packet.HEADER_LEN)
 		_, err := io.ReadFull(c, head) //读取头部的2个字节
@@ -94,29 +74,57 @@ func coonSt(c net.Conn) {
 			log.Println(err)
 		}
 		code := binary.BigEndian.Uint16(head)
-		ParseCode(code,c)
+		ParseCode(code,sess)
 	}
-
 }
+//func coonSt(c net.Conn) {
+//	//in := make(chan []byte, 16)
+//	//sess := session.NewSession(in)
+//	defer func() {
+//		log.Println("disconnect",c.RemoteAddr().String())
+//		c.Close()
+//	}()
+//	//打印电梯信息
+//	go func() {
+//		for  {
+//			log.Println(".................")
+//			for _,j:=range elevator.Els {
+//				log.Printf("ElevatorId:%s,Floor:%d,State:%s,CurrentState:%s,IsInFloor:%s\n",j.ElevatorId,j.Floor,j.State,j.CurrentState,j.IsInFloor)
+//			}
+//			time.Sleep(time.Second*10)
+//		}
+//	}()
+//	for  {
+//		//此处应该先 解包识别byte[0:2]的code 然后去传入 不同的方法。
+//		head := make([]byte, packet.HEADER_LEN)
+//		_, err := io.ReadFull(c, head) //读取头部的2个字节
+//		if err != nil {
+//			log.Println(err)
+//		}
+//		code := binary.BigEndian.Uint16(head)
+//		ParseCode(code,c)
+//	}
+//
+//}
 
 
-func ParseCode(code uint16,c net.Conn)  {
+func ParseCode(code uint16,s *session.Session)  {
 	switch code {
 	//
 	case reply.UPDATE_ELE:
-		reply.ReplyUpdateElevator(c,els)
+		reply.ReplyUpdateElevator(s,elevator.Els)
 	case reply.CHOOSE_ELE:
-		reply.ReplyRightElevator(c,els)
+		reply.ReplyRightElevator(s,elevator.Els)
 	case reply.ARRIVED_START:
-		reply.ReplyElevatorArriveStart(c)
+		reply.ReplyElevatorArriveStart(s)
 	case reply.ARRIVED_END:
-		reply.ReplyElevatorArriveEnd(c)
+		reply.ReplyElevatorArriveEnd(s)
 	case reply.ROBOT_In_Floor:
-		reply.ReplyRobotInFloor(c,els)
+		reply.ReplyRobotInFloor(s,elevator.Els)
 	case reply.ROBOT_OUT_Floor:
-		reply.ReplyRobotOutFloor(c,els)
+		reply.ReplyRobotOutFloor(s,elevator.Els)
 	default:
-		reply.ReplyError(c)
+		reply.ReplyError(s)
 	}
 }
 
