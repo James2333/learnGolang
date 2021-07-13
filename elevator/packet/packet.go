@@ -24,6 +24,7 @@ func Packet(content interface{},code int16) []byte {
 	// 将buffer前面2个字节设置为code
 	binary.BigEndian.PutUint16(buffer[0:2], uint16(code))
 	binary.BigEndian.PutUint16(buffer[2:4], uint16(len(bytes)))
+	//buffer=append(buffer,bytes...)
 	copy(buffer[4:], bytes)
 	return buffer
 }
@@ -39,7 +40,7 @@ func UnPacket(c net.Conn) (*Protocol, error) {
 		return p, err
 	}
 	length := binary.BigEndian.Uint16(header) //转换成10进制的数字
-	log.Println("包长度:",length)
+	log.Println("本次解包长度:",length)
 	contentByte := make([]byte,length)
 	_, e := io.ReadFull(c, contentByte) //继续读取后续内容
 	if e != nil {

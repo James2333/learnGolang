@@ -74,7 +74,6 @@ func (tasks Tasks)AddTask(t *Task) error {
 	}
 	tasks[t.TaskID] = t
 	return nil
-
 }
 //更新电梯信息,初次连接相当于注册，需要初始化sess信息
 func ReplyUpdateElevator(s *session.Session, els elevator.Elevators) {
@@ -136,8 +135,12 @@ func ReplyRightElevator(s *session.Session, els elevator.Elevators) {
 func ReqElevatorToStart(taskid string, els elevator.Elevators) {
 	log.Printf("正在请求电梯去往起点楼层")
 	elSess := els[tasks[taskid].ElevatorID].Sess
-	//把整个task发出去
-	buffer := packet.Packet(*tasks[taskid], ELE_TO_START)
+	task,ok:=tasks[taskid]
+	if !ok{
+
+	}
+
+	buffer := packet.Packet(task, ELE_TO_START)
 	elSess.Ch <- buffer
 }
 
@@ -147,18 +150,24 @@ func ReplyElevatorArriveStart(s *session.Session) {
 	if err != nil {
 		log.Println(err)
 	}
-	var task Task
-	_ = json.Unmarshal(q.Content, &task)
-	task = *tasks[task.TaskID]
-	ReqElevatorArriveStart(task.TaskID)
+	task:=new(Task)
+	json.Unmarshal(q.Content, task)
+	taskSb,ok:= tasks[task.TaskID]
+	if !ok{
+		log.Printf("没有找到任务%s",task.TaskID)
+		return
+	}
+	log.Printf("任务%s电梯抵达起点楼层%d.",taskSb.TaskID,taskSb.Start)
+	ReqElevatorArriveStart(taskSb)
 	return
 }
 
 //向调度发送电梯已经抵达起点楼层
-func ReqElevatorArriveStart(taskid string) {
-	tSess := tasks[taskid].Sess
+func ReqElevatorArriveStart(task *Task) {
+	tSess := task.Sess
 	//把整个task发出去
-	buffer := packet.Packet(tasks[taskid], ROBOT_START)
+	buffer := packet.Packet(*task, ROBOT_START)
+	log.Printf("发送任务%s已经抵达起点楼层%d.",task.TaskID,task.Start)
 	tSess.Ch <- buffer
 	return
 }
@@ -241,7 +250,8 @@ func ReqElevatorTaskEnd(taskid string, els elevator.Elevators) {
 
 //错误返回
 func ReplyError(s *session.Session) {
-	buffer := packet.Packet(errors.New("404 not found"), ERROR)
-	s.Ch <- buffer
+	//buffer := packet.Packet(errors.New("404 not found"), ERROR)
+	log.Printf("收到%s无效的请求",s.C.RemoteAddr().String())
+	//s.Ch <- buffer
 	return
 }

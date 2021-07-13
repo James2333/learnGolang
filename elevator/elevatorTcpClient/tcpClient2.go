@@ -12,7 +12,7 @@ import (
 )
 
 func ccConnHandler(c net.Conn) {
-	in := make(chan []byte, 16)
+	in := make(chan []byte, 1024)
 	sess := session.NewSession(c,in)
 	if c == nil {
 		log.Println("conn无效")

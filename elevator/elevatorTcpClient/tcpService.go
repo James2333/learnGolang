@@ -30,6 +30,15 @@ func NewTcpService() {
 	fmt.Println("listen Start...:")
 	//els := NewTestEls()
 	fmt.Println("初始化电梯数据...")
+	go func() {
+		for  {
+			log.Println("打印电梯信息:")
+			for _,j:=range elevator.Els {
+				log.Printf("ElevatorId:%s,Floor:%d,State:%s,CurrentState:%s,IsInFloor:%t\n",j.ElevatorId,j.Floor,j.State,j.CurrentState,j.IsInFloor)
+			}
+			time.Sleep(time.Second*10)
+		}
+	}()
 	for {
 		//2.接收客户端的链接
 		conn, err := listen.Accept()
@@ -43,7 +52,7 @@ func NewTcpService() {
 }
 
 func connSt(c net.Conn)  {
-	in := make(chan []byte, 16)
+	in := make(chan []byte, 1024)
 	sess := session.NewSession(c,in)
 	defer func() {
 		glog.Info("disconnect:" + c.RemoteAddr().String())
@@ -57,15 +66,6 @@ func connSt(c net.Conn)  {
 			}
 		}
 	}()
-		go func() {
-			for  {
-				log.Println("打印电梯信息:")
-				for _,j:=range elevator.Els {
-					log.Printf("ElevatorId:%s,Floor:%d,State:%s,CurrentState:%s,IsInFloor:%t\n",j.ElevatorId,j.Floor,j.State,j.CurrentState,j.IsInFloor)
-				}
-				time.Sleep(time.Second*10)
-			}
-		}()
 	for {
 		//此处应该先 解包识别byte[0:2]的code 然后去传入 不同的方法。
 		head := make([]byte, packet.HEADER_LEN)
@@ -109,6 +109,7 @@ func connSt(c net.Conn)  {
 
 
 func ParseCode(code uint16,s *session.Session)  {
+	log.Printf("收到%s的请求，请求头%d.",s.C.RemoteAddr().String(),code)
 	switch code {
 	//
 	case reply.UPDATE_ELE:

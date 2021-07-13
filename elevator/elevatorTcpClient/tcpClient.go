@@ -27,7 +27,7 @@ func cConnHandler(c net.Conn) {
 		log.Println("conn无效")
 		return
 	}
-	in := make(chan []byte, 16)
+	in := make(chan []byte, 1024)
 	sess := session.NewSession(c,in)
 	defer func() {
 		log.Println("disconnect",c.RemoteAddr().String())
@@ -41,7 +41,6 @@ func cConnHandler(c net.Conn) {
 			}
 		}
 	}()
-	log.Println("客户端建立连接成功...")
 	//模拟发起一次任务
 	task1:=reply.Task{
 		TaskID:     "111",
@@ -67,10 +66,11 @@ func NewClientSocket() {
 		fmt.Println("客户端建立连接失败")
 		return
 	}
+	log.Println("客户端建立连接成功...")
 	cConnHandler(conn)
 }
 
-func NewTestTask(s *session.Session,task reply.Task)  {
+func NewTestTask(s *session.Session,task reply.Task){
 	b:=packet.Packet(task,reply.CHOOSE_ELE)
 	s.Ch<-b
 }

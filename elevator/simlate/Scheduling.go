@@ -10,6 +10,7 @@ import (
 )
 
 func ParseCodeScheduling(code uint16, s *session.Session) {
+	log.Printf("收到%s的请求，请求头%d.",s.C.RemoteAddr().String(),code)
 	switch code {
 	case reply.ROBOT_START:
 		ReqRobotInStart(s)
