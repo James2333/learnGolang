@@ -1,0 +1,16 @@
+syntax = "proto3";
+package grpcStream;
+
+
+message StreamRequest{
+  string question = 1;
+}
+
+message StreamResponse{
+  string answer = 1;
+}
+
+service Stream{
+  rpc Conversations(stream StreamRequest) returns(stream StreamResponse){};
+}
+
